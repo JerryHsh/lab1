@@ -171,7 +171,7 @@ NOTES:
  *   Rating: 1
  */
 int lsbZero(int x) {
-  return 2;
+  return (x&(~1));
 }
 /* 
  * byteNot - bit-inversion to byte n from word x  
