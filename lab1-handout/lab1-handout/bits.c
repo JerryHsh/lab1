@@ -129,7 +129,6 @@ NOTES:
  *      the correct answers.
  */
 
-
 #endif
 /* Copyright (C) 1991-2014 Free Software Foundation, Inc.
    This file is part of the GNU C Library.
@@ -170,8 +169,9 @@ NOTES:
  *   Max ops: 5
  *   Rating: 1
  */
-int lsbZero(int x) {
-  return (x&(~1));
+int lsbZero(int x)
+{
+  return (x & (~1));
 }
 /* 
  * byteNot - bit-inversion to byte n from word x  
@@ -181,8 +181,10 @@ int lsbZero(int x) {
  *   Max ops: 6
  *   Rating: 2
  */
-int byteNot(int x, int n) {
-  return 2;
+int byteNot(int x, int n)
+{
+  int mask = 0xff << (n << 3);
+  return x ^ mask;
 }
 /* 
  *   byteXor - compare the nth byte of x and y, if it is same, return 0, if not, return 1
@@ -194,8 +196,11 @@ int byteNot(int x, int n) {
  *   Max ops: 20
  *   Rating: 2 
  */
-int byteXor(int x, int y, int n) {
-  return 2;
+int byteXor(int x, int y, int n)
+{
+  int mask1 = (x & (0xff << (n << 3))) >> (n << 3);
+  int mask2 = (y & (0xff << (n << 3))) >> (n << 3);
+  return !!(mask1 ^ mask2);
 }
 /* 
  *   logicalAnd - x && y
@@ -203,8 +208,11 @@ int byteXor(int x, int y, int n) {
  *   Max ops: 20
  *   Rating: 3 
  */
-int logicalAnd(int x, int y) {
-  return 2;
+int logicalAnd(int x, int y)
+{
+  int val_x = !!x;
+  int val_y = !!y;
+  return val_x & val_y;
 }
 /* 
  *   logicalOr - x || y
@@ -212,8 +220,11 @@ int logicalAnd(int x, int y) {
  *   Max ops: 20
  *   Rating: 3 
  */
-int logicalOr(int x, int y) {
-  return 2;
+int logicalOr(int x, int y)
+{
+  int val_x = !!x;
+  int val_y = !!y;
+  return val_x | val_y;
 }
 /* 
  * rotateLeft - Rotate x to the left by n
@@ -223,8 +234,9 @@ int logicalOr(int x, int y) {
  *   Max ops: 25
  *   Rating: 3 
  */
-int rotateLeft(int x, int n) {
-  return 2;
+int rotateLeft(int x, int n)
+{
+  return (x << n) | ((x >> (32 + (~n + 1))) & ((1 << n) + (~1 + 1)));
 }
 /*
  * parityCheck - returns 1 if x contains an odd number of 1's
@@ -233,8 +245,15 @@ int rotateLeft(int x, int n) {
  *   Max ops: 20
  *   Rating: 4
  */
-int parityCheck(int x) {
-  return 2;
+int parityCheck(int x)
+{
+  x = x ^ (x >> 16);
+  x = x ^ (x >> 8);
+  x = x ^ (x >> 4);
+  x = x ^ (x >> 2);
+  x = x ^ (x >> 1);
+  x = x & 1;
+  return x;
 }
 /*
  * mul2OK - Determine if can compute 2*x without overflow
@@ -245,8 +264,9 @@ int parityCheck(int x) {
  *   Max ops: 20
  *   Rating: 2
  */
-int mul2OK(int x) {
-  return 2;
+int mul2OK(int x)
+{
+  return ((~(x ^ (x << 1))) >> 31) & 1;
 }
 /*
  * mult3div2 - multiplies by 3/2 rounding toward 0,
@@ -259,8 +279,12 @@ int mul2OK(int x) {
  *   Max ops: 12
  *   Rating: 2
  */
-int mult3div2(int x) {
-  return 2;
+int mult3div2(int x)
+{
+  int time3 = (x << 1) + x;
+  int msb = (time3 >> 31) & 1;
+  int lsb = time3 & 1;
+  return (time3 >> 1) + (msb & lsb);
 }
 /* 
  * subOK - Determine if can compute x-y without overflow
@@ -270,8 +294,12 @@ int mult3div2(int x) {
  *   Max ops: 20
  *   Rating: 3
  */
-int subOK(int x, int y) {
-  return 2;
+int subOK(int x, int y)
+{
+  int val1 = (x >> 31) & 1;
+  int val2 = (y >> 31) & 1;
+  int val3 = ((x + (~y + 1)) >> 31) & 1;
+  return !((val1 ^ val3) & (val1 ^ val2));
 }
 /* 
  * absVal - absolute value of x
@@ -281,8 +309,11 @@ int subOK(int x, int y) {
  *   Max ops: 10
  *   Rating: 4
  */
-int absVal(int x) {
-  return 2;
+int absVal(int x)
+{
+  int mask = x >> 31;
+  int result = ((x + (~(mask & 1) + 1)) ^ mask) & (~(1 << 31));
+  return result;
 }
 /* 
  * float_abs - Return bit-level equivalent of absolute value of f for
@@ -295,8 +326,13 @@ int absVal(int x) {
  *   Max ops: 10
  *   Rating: 2
  */
-unsigned float_abs(unsigned uf) {
-  return 2;
+unsigned float_abs(unsigned uf)
+{
+  unsigned normal = uf & 0x7fffffff;
+  if (((normal >> 23) == 0xff) && ((normal << 9) != 0))
+    return uf;
+  else
+    return normal;
 }
 /* 
  * float_f2i - Return bit-level equivalent of expression (int) f
@@ -310,6 +346,83 @@ unsigned float_abs(unsigned uf) {
  *   Max ops: 30
  *   Rating: 4
  */
-int float_f2i(unsigned uf) {
-  return 2;
+int float_f2i(unsigned uf)
+{
+  int e_all_ones_flag;
+  int j = 1;
+  int sgn = !(uf & 0x80000000);
+  int E = ((uf & 0x7f800000) >> 23) - 127;
+  unsigned num;
+  num = ((uf & (0x007fffff)) + 0x00800000);
+  while (j <= (23 - E))
+  {
+    num = num / 2;
+    j++;
+  }
+  e_all_ones_flag = (uf & 0x7f800000) >> 23;
+  if (e_all_ones_flag == 0)
+  {
+    return 0;
+  }
+  else
+  {
+    if (num == 0x800000 || (e_all_ones_flag < 1 || e_all_ones_flag > 127))
+    {
+      return 0x80000000;
+    }
+    else
+    {
+      if (sgn)
+      {
+        return num;
+      }
+      else
+      {
+        return ~num + 1;
+      }
+    }
+  }
 }
+/*
+int float_f2i(unsigned uf)
+{
+  int e = ((uf >> 23) & 0xff);
+  int f = (uf & 0x7fffff);
+  int s = uf & 0x80000000;
+  int m;             //store the mantissa
+  int true_form = 0; //store the origin num
+  int cmpt;          //store the 2's completement
+  //special form
+  if (e == 0xff)
+    return 0x80000000u;
+  //normal num
+  if (e == 0x0)
+  {
+    e = 1 - 127;
+    m = f;
+  }
+  else
+  {
+    e -= 127;
+    m = f | 0x800000;
+  }
+
+  if ((e - 23) > 0)
+    true_form = m << (e - 23);
+  else if ((23 - e) <= 24)
+    true_form = m >> (23 - e);
+  else
+    true_form = 0;
+  //cal cmpt
+  if (true_form == 0)
+    cmpt = 0;
+  else
+  {
+    if (s == 0)
+      cmpt = true_form;
+    else
+      cmpt = ~true_form + 1;
+  }
+  return cmpt;
+}
+*/
