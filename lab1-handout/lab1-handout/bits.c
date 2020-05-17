@@ -346,44 +346,7 @@ unsigned float_abs(unsigned uf)
  *   Max ops: 30
  *   Rating: 4
  */
-int float_f2i(unsigned uf)
-{
-  int e_all_ones_flag;
-  int j = 1;
-  int sgn = !(uf & 0x80000000);
-  int E = ((uf & 0x7f800000) >> 23) - 127;
-  unsigned num;
-  num = ((uf & (0x007fffff)) + 0x00800000);
-  while (j <= (23 - E))
-  {
-    num = num / 2;
-    j++;
-  }
-  e_all_ones_flag = (uf & 0x7f800000) >> 23;
-  if (e_all_ones_flag == 0)
-  {
-    return 0;
-  }
-  else
-  {
-    if (num == 0x800000 || (e_all_ones_flag < 1 || e_all_ones_flag > 127))
-    {
-      return 0x80000000;
-    }
-    else
-    {
-      if (sgn)
-      {
-        return num;
-      }
-      else
-      {
-        return ~num + 1;
-      }
-    }
-  }
-}
-/*
+
 int float_f2i(unsigned uf)
 {
   int e = ((uf >> 23) & 0xff);
@@ -398,8 +361,7 @@ int float_f2i(unsigned uf)
   //normal num
   if (e == 0x0)
   {
-    e = 1 - 127;
-    m = f;
+    return 0;
   }
   else
   {
@@ -408,8 +370,13 @@ int float_f2i(unsigned uf)
   }
 
   if ((e - 23) > 0)
-    true_form = m << (e - 23);
-  else if ((23 - e) <= 24)
+  {
+    if ((e - 23) > 8)//over int limit
+      return 0x80000000;
+    else
+      true_form = m << (e - 23);
+  }
+  else if ((23 - e) < 24)
     true_form = m >> (23 - e);
   else
     true_form = 0;
@@ -425,4 +392,3 @@ int float_f2i(unsigned uf)
   }
   return cmpt;
 }
-*/
